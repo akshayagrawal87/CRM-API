@@ -10,6 +10,7 @@ const app = express();
 
 const authRoute = require("./routes/auth");
 const crm = require("./routes/crm");
+let port = process.env.PORT || 4000;
 
 dotenv.config();
 
@@ -29,8 +30,8 @@ app.use(cookieParser());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use("/api/user", authRoute);
-app.use("/api/crm",crm);
+app.use("/api/crm", crm);
 
-app.listen(4000, () => {
+app.listen(port, () => {
 	"Server up and running!!";
 });
