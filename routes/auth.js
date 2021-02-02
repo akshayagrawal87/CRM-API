@@ -76,7 +76,8 @@ router.post("/login", async (req, res) => {
 	// res.header("auth-token", token).send(token);
 	res.cookie("AuthToken", token, {
 		maxAge: 36000,
-		httpOnly: false,
+		httpOnly: true,
+		secure: true,
 	});
 
 	res.send("Logged in!");
