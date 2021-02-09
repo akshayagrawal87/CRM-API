@@ -2,6 +2,17 @@ const router = require("express").Router();
 const User = require("../model/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const dotenv = require("dotenv");
+
+const randomstring = require("randomstring");
+
+const nodemailer = require("nodemailer");
+
+const MongoClient = require("mongodb").MongoClient;
+
+dotenv.config();
+
+const sendUrl = process.env.ENV_URL + "/register/activateUser/";
 
 const Joi = require("joi");
 
@@ -17,6 +28,71 @@ const schemaLogin = Joi.object({
 	email: Joi.string().min(6).required().email(),
 	password: Joi.string().min(6).required(),
 });
+
+const sendMail = async (email) => {
+	let transporter = nodemailer.createTransport({
+		service: "gmail",
+		auth: {
+			user: process.env.gmailUserName,
+			pass: process.env.gmailPassword,
+		},
+	});
+
+	MongoClient.connect(
+		process.env.DB_CONNECTION,
+		{ useUnifiedTopology: true },
+		async function (err, db) {
+			let dbo = db.db("akshay");
+
+			console.log("Inside sendMail");
+
+			let data = await dbo
+				.collection("users") // Get the user details
+				.findOne({
+					email: email,
+				});
+			console.log(data);
+
+			let randomString = randomstring.generate({
+				length: 18,
+				charset: "alphanumeric",
+			});
+
+			dbo.collection("VerifyUser").insertOne(
+				{
+					createdAt: new Date(),
+					username: email,
+					string: randomString,
+				},
+				function (err, res) {
+					if (err) throw err;
+					console.log("Random string Inserted");
+				}
+			);
+
+			dbo
+				.collection("VerifyUser")
+				.createIndex({ createdAt: 1 }, { expireAfterSeconds: 6000 });
+
+			console.log(process.env.gmailUserName);
+
+			let mailOptions = {
+				from: process.env.gmailUserName,
+				to: email,
+				subject: "Verify User.",
+				text: "The given link will expire in 1 min: " + sendUrl + randomString,
+			};
+
+			transporter.sendMail(mailOptions, (err, data) => {
+				if (err) {
+					console.log({ message: "Error Occurs", linkSent: false });
+				} else {
+					console.log({ message: "Link Sent", linkSent: true });
+				}
+			});
+		}
+	);
+};
 
 router.post("/register", async (req, res) => {
 	try {
@@ -42,10 +118,59 @@ router.post("/register", async (req, res) => {
 
 	try {
 		const savedUser = await user.save();
+		console.log(savedUser);
+		sendMail(user.email);
 		res.send(savedUser);
 	} catch (err) {
 		res.status(400).send(err);
 	}
+});
+
+router.get("/register/activateUser/:randomString", (req, res) => {
+	let randomString = req.params.randomString;
+	console.log(randomString);
+
+	MongoClient.connect(process.env.DB_CONNECTION, function (err, db) {
+		if (err) throw err;
+		let dbo = db.db("akshay");
+		dbo
+			.collection("VerifyUser")
+			.findOne({ string: randomString }, function (err, result) {
+				if (err) throw err;
+				if (result !== null) {
+					console.log(result.username);
+
+					var myquery = { username: result.username };
+					var newvalues = {
+						$set: { verified: true },
+					};
+
+					dbo
+						.collection("Users")
+						.updateOne(myquery, newvalues, function (err, res) {
+							if (err) {
+								res.send({
+									message: "Status not changed",
+									changed: false,
+								});
+							}
+							console.log("Status updated");
+							db.close();
+							res.send({
+								message: "Status changed",
+								changed: true,
+							});
+						});
+
+					// res.redirect("http://localhost:3000/userVerified");
+				} else {
+					console.log({ message: "Link Expired", reset: false });
+					res.send({ message: "Link Expired", reset: false });
+					// res.redirect("http://localhost:3000/invalidLink");
+				}
+				db.close();
+			});
+	});
 });
 
 router.get(
@@ -59,6 +184,7 @@ router.get(
 );
 
 router.post("/login", async (req, res) => {
+
 	try {
 		const validation = await schemaLogin.validateAsync(req.body);
 	} catch (err) {
@@ -67,7 +193,11 @@ router.post("/login", async (req, res) => {
 
 	const user = await User.findOne({ email: req.body.email });
 
-	if (!user) return res.status(400).send("email or password is wrong!!");
+    if (!user) return res.status(400).send("email or password is wrong!!");
+    
+    const verified=user.verified;
+    
+    if(!verified) res.status(400).send("Account not verified");
 
 	const validPass = await bcrypt.compare(req.body.password, user.password);
 	if (!validPass) return res.status(400).send("Invalid Password");
@@ -79,6 +209,8 @@ router.post("/login", async (req, res) => {
 		httpOnly: true,
 		secure: true,
 	});
+    res.cookie("Role", user.type);
+    res.cookie("Authorized", user.authorized);
 
 	res.send("Logged in!");
 });

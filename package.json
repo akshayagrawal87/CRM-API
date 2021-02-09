@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -19,7 +19,12 @@
     "joi": "^17.3.0",
     "joi-password-complexity": "^5.0.2",
     "jsonwebtoken": "^8.5.1",
+    "mongodb": "^3.6.4",
     "mongoose": "^5.11.14",
-    "nodemon": "^2.0.7"
+    "nodemailer": "^6.4.17",
+    "nodemon": "^2.0.7",
+    "random": "^2.2.0",
+    "randomstring": "^1.1.5",
+    "string": "^3.3.3"
   }
 }
