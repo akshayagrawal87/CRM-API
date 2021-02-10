@@ -1,14 +1,18 @@
 const jwt = require("jsonwebtoken");
 
 module.exports = function (req, res, next) {
-	const token = req.cookies["AuthToken"];
-	if (!token) return res.status(401).send("Access Denied");
+	 const authHeader = req.headers.authorization;
+		if (authHeader) {
+			const token = authHeader.split(" ")[1];
 
-	try {
-		const verified = jwt.verify(token, process.env.TOKEN_SECRET);
-		req.user = "verified";
-		next();
-	} catch (err) {
-		res.status(400).send("Invalid Token");
-	}
+			jwt.verify(token, process.env.TOKEN_SECRET, (err, user) => {
+				if (err) {
+					return res.sendStatus(403);
+				}
+				req.user = user;
+				next();
+			});
+		} else {
+			res.sendStatus(401);
+		}
 };

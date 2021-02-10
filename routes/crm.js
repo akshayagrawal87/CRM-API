@@ -10,7 +10,8 @@ const nodemailer = require("nodemailer");
 
 const dotenv = require("dotenv");
 const Service = require("../model/Service");
-const lead = require("../model/Lead");
+const Lead = require("../model/Lead");
+const leadStatus = require("../model/leadStatus");
 
 dotenv.config();
 
@@ -25,30 +26,22 @@ const sendMail = async (subject, description) => {
 		},
 	});
 
-	MongoClient.connect(
-		process.env.DB_CONNECTION,
-		{ useUnifiedTopology: true },
-		async function (err, db) {
-			let dbo = db.db("akshay");
+	console.log("Inside sendMail");
 
-			console.log("Inside sendMail");
+	let mailOptions = {
+		from: process.env.gmailUserName,
+		to: process.env.admin,
+		subject: subject,
+		text: description,
+	};
 
-			let mailOptions = {
-				from: process.env.gmailUserName,
-				to: process.env.admin,
-				subject: subject,
-				text: description,
-			};
-
-			transporter.sendMail(mailOptions, (err, data) => {
-				if (err) {
-					console.log({ message: "Error Occurs", linkSent: false });
-				} else {
-					console.log({ message: "Link Sent", linkSent: true });
-				}
-			});
+	transporter.sendMail(mailOptions, (err, data) => {
+		if (err) {
+			console.log({ message: "Error Occurs", linkSent: false });
+		} else {
+			console.log({ message: "Link Sent", linkSent: true });
 		}
-	);
+	});
 };
 
 router.post("/createService", checkAccess, async (req, res) => {
@@ -71,22 +64,39 @@ router.post("/createService", checkAccess, async (req, res) => {
 	}
 });
 
-router.put("/updateService", checkAccess, (req, res) => {});
+router.put("/updateService", checkAccess, async (req, res) => {
+	MongoClient.connect(process.env.DB_CONNECTION, function (err, db) {
+		if (err) throw err;
+		let dbo = db.db("akshay");
 
-router.get("/services", async (req, res) => {
-	Service.find({}, function (err, services) {
-		serviceMap = {};
+		let ObjectId = require("mongodb").ObjectId;
+		let id = req.body.id;
+		let o_id = new ObjectId(id);
 
-		services.forEach(function (service) {
-			serviceMap[service._id] = user;
-		});
+		const filter = { _id: o_id };
 
-		res.send(serviceMap);
+		const update = { $set: { status: req.body.status } };
+
+		dbo
+			.collection("services")
+			.updateOne(filter, update, function (err, response) {
+				if (err) {
+					res.send(404).send(err);
+					throw err;
+				}
+				console.log("Service Status Updated");
+				res.send("Service Status Updated");
+			});
 	});
 });
 
+router.get("/services", async (req, res) => {
+	let response = await Service.find({});
+	res.send(response);
+});
+
 router.post("/createLead", checkAccess, async (req, res) => {
-	const lead = new lead({
+	const lead = new Lead({
 		name: req.body.name,
 		contact: req.body.contact,
 		status: req.body.status,
@@ -96,7 +106,7 @@ router.post("/createLead", checkAccess, async (req, res) => {
 		const savedLead = await lead.save();
 		sendMail(
 			"New Lead Request",
-			`A new lead request is created with following details:${savedService}`
+			`A new lead request is created with following details:${savedLead}`
 		);
 		res.send(savedLead);
 	} catch (err) {
@@ -105,9 +115,35 @@ router.post("/createLead", checkAccess, async (req, res) => {
 	}
 });
 
-router.put("/updateLead", checkAccess, (req, res) => {});
+router.put("/updateLead", checkAccess, (req, res) => {
+	MongoClient.connect(process.env.DB_CONNECTION, function (err, db) {
+		if (err) throw err;
+		let dbo = db.db("akshay");
 
-router.get("/leads", (res, req) => {});
+		let ObjectId = require("mongodb").ObjectId;
+		let id = req.body.id;
+		let o_id = new ObjectId(id);
+
+		const filter = { _id: o_id };
+
+		const update = { $set: { status: req.body.status } };
+
+		dbo.collection("leads").updateOne(filter, update, function (err, response) {
+			if (err) {
+				res.send(404).send(err);
+				throw err;
+			}
+			console.log("Lead Status Updated");
+
+			res.send("Lead Status Updated");
+		});
+	});
+});
+
+router.get("/leads", async (res, req) => {
+	let response = await Lead.find({});
+	res.send(response);
+});
 
 router.put("/updateLead/contact", checkAccess, (req, res) => {});
 

@@ -136,41 +136,28 @@ router.get("/register/activateUser/:randomString", (req, res) => {
 		dbo
 			.collection("VerifyUser")
 			.findOne({ string: randomString }, function (err, result) {
-				if (err) throw err;
-				if (result !== null) {
-					console.log(result.username);
-
-					var myquery = { username: result.username };
-					var newvalues = {
-						$set: { verified: true },
-					};
-
-					dbo
-						.collection("Users")
-						.updateOne(myquery, newvalues, function (err, res) {
-							if (err) {
-								res.send({
-									message: "Status not changed",
-									changed: false,
-								});
-							}
-							console.log("Status updated");
-							db.close();
-							res.send({
-								message: "Status changed",
-								changed: true,
-							});
-						});
-
-					// res.redirect("http://localhost:3000/userVerified");
-				} else {
-					console.log({ message: "Link Expired", reset: false });
-					res.send({ message: "Link Expired", reset: false });
-					// res.redirect("http://localhost:3000/invalidLink");
+				if (err) {
+					res.status(404).send(err);
+					throw err;
 				}
+
+				var myquery = { email: result.username };
+				var newvalues = { $set: { verified: true } };
+				dbo
+					.collection("users")
+					.updateOne(myquery, newvalues, function (err, response) {
+						if (err) {
+							res.send(404).send(err);
+							throw err;
+						}
+						console.log("User Verified");
+						res.send("User Verifed");
+					});
+
 				db.close();
 			});
 	});
+	res.send("User not verifed");
 });
 
 router.get(
@@ -184,7 +171,6 @@ router.get(
 );
 
 router.post("/login", async (req, res) => {
-
 	try {
 		const validation = await schemaLogin.validateAsync(req.body);
 	} catch (err) {
@@ -193,24 +179,26 @@ router.post("/login", async (req, res) => {
 
 	const user = await User.findOne({ email: req.body.email });
 
-    if (!user) return res.status(400).send("email or password is wrong!!");
-    
-    const verified=user.verified;
-    
-    if(!verified) res.status(400).send("Account not verified");
+	if (!user) return res.status(400).send("email or password is wrong!!");
+
+	const verified = user.verified;
+
+	if (!verified) res.status(400).send("Account not verified");
 
 	const validPass = await bcrypt.compare(req.body.password, user.password);
 	if (!validPass) return res.status(400).send("Invalid Password");
 
-	const token = jwt.sign({ _id: user._id }, process.env.TOKEN_SECRET);
+	const token = jwt.sign({ _id: user._id }, process.env.TOKEN_SECRET, {
+		expiresIn: 60 * 60,
+	});
 	// res.header("auth-token", token).send(token);
 	res.cookie("AuthToken", token, {
 		maxAge: 36000,
 		httpOnly: true,
 		secure: true,
 	});
-    res.cookie("Role", user.type);
-    res.cookie("Authorized", user.authorized);
+	res.json({ token });
+	res.cookie("Authorized", user.authorized);
 
 	res.send("Logged in!");
 });
