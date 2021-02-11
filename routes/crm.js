@@ -13,6 +13,8 @@ const Service = require("../model/Service");
 const Lead = require("../model/Lead");
 const leadStatus = require("../model/leadStatus");
 
+const adminMangerAccess = require("./adminMangerAccess");
+
 dotenv.config();
 
 router.use(verify);
@@ -43,6 +45,10 @@ const sendMail = async (subject, description) => {
 		}
 	});
 };
+
+router.get("/dashboard", async (req, res) => {});
+
+router.put("/provideAccess", adminMangerAccess, async (req, res) => {});
 
 router.post("/createService", checkAccess, async (req, res) => {
 	const service = new Service({
